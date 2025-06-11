@@ -2,4 +2,3 @@ selenium
 webdriver-manager
 deep-translator
 vaderSentiment
-# Add other libraries like beautifulsoup4 later if direct Selenium selectors become too complex
