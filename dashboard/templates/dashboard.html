@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook OSINT Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .form-section, .results-section, .status-section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="url"] { width: 90%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        button:hover { background-color: #0056b3; }
+        .scraper-options label { display: inline-block; margin-right: 15px; font-weight: normal;}
+        .scraper-options input[type="checkbox"] { margin-right: 5px; }
+        #status { padding: 10px; border: 1px solid #eee; background-color: #f9f9f9; min-height: 50px; white-space: pre-wrap; }
+        #results { padding: 10px; border: 1px solid #eee; background-color: #f9f9f9; margin-top: 20px; }
+        .post, .comment, .discussion-item { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+        .post:last-child, .comment:last-child, .discussion-item:last-child { border-bottom: none; }
+        .post-content, .comment-content { margin-left: 20px; }
+        .sentiment, .risk-score, .translation { font-size: 0.9em; color: #555; margin-left: 20px; }
+        .report-link { margin-top: 15px; }
+        pre { background-color: #eee; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Facebook OSINT Dashboard</h1>
+
+        <div class="form-section">
+            <h2>Initiate Scrape</h2>
+            <form id="scrapeForm">
+                <div>
+                    <label for="scrapeType">Action:</label>
+                    <select id="scrapeType" name="scrapeType">
+                        <option value="profile">Profile URL</option>
+                        <option value="search">Keyword Search</option>
+                        <option value="post_details">Single Post URL</option>
+                    </select>
+                </div>
+                <br>
+                <div>
+                    <label for="targetUrl">URL / Keywords:</label>
+                    <input type="text" id="targetUrl" name="targetUrl" required placeholder="Enter Profile URL, Search Keywords, or Post URL">
+                </div>
+
+                <div class="scraper-options">
+                    <h3>Options:</h3>
+                    <label for="analyzeSentiment">
+                        <input type="checkbox" id="analyzeSentiment" name="analyzeSentiment"> Analyze Sentiment
+                    </label>
+                    <label for="translateTo">Translate Text (e.g., to 'en'):</label>
+                    <input type="text" id="translateTo" name="translateTo" placeholder="en" style="width: 50px; padding: 5px; margin-bottom:0;">
+                </div>
+                <br>
+                <button type="submit">Start Scrape</button>
+            </form>
+        </div>
+
+        <div class="status-section">
+            <h2>Status / Logs</h2>
+            <pre id="status">Awaiting commands...</pre>
+        </div>
+
+        <div class="results-section">
+            <h2>Results</h2>
+            <div id="results">
+                <p>Scraped data will appear here.</p>
+            </div>
+        </div>
+
+        <div class="report-link">
+            <h2>View Last Report</h2>
+            <a href="/view_report" target="_blank" id="viewReportLink" style="display:none;">View Last Generated Report</a>
+            <p id="noReportText">No report generated yet in this session.</p>
+        </div>
+    </div>
+
+    <script>
+        const scrapeForm = document.getElementById('scrapeForm');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const viewReportLink = document.getElementById('viewReportLink');
+        const noReportText = document.getElementById('noReportText');
+
+        scrapeForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            statusDiv.textContent = 'Initiating scrape... Please wait.';
+            resultsDiv.innerHTML = '<p>Working...</p>';
+            viewReportLink.style.display = 'none';
+            noReportText.style.display = 'block';
+
+            const formData = new FormData(scrapeForm);
+            const scrapeType = formData.get('scrapeType');
+            const targetUrl = formData.get('targetUrl');
+            const analyzeSentiment = formData.get('analyzeSentiment') === 'on';
+            const translateTo = formData.get('translateTo');
+
+            let endpoint = '';
+            const params = new URLSearchParams();
+            params.append('analyze_sentiment', analyzeSentiment);
+            if (translateTo) {
+                params.append('translate_to', translateTo);
+            }
+
+            if (scrapeType === 'profile') {
+                endpoint = `/scrape_profile?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            } else if (scrapeType === 'search') {
+                endpoint = `/scrape_search?keywords=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            } else if (scrapeType === 'post_details') {
+                endpoint = `/scrape_post?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            } else {
+                statusDiv.textContent = 'Error: Invalid scrape type selected.';
+                return;
+            }
+
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
+
+                if (data.error) {
+                    statusDiv.textContent = `Error: ${data.error}`;
+                    if(data.captcha_detected) {
+                         statusDiv.textContent += "\nCAPTCHA DETECTED. Please check the console of the scraper script, solve the CAPTCHA in the browser instance it controls, then try your scrape again from here after a moment.";
+                    }
+                    resultsDiv.innerHTML = '<p>Scraping failed. See status for details.</p>';
+                } else {
+                    statusDiv.textContent = 'Scrape completed successfully! Report generated (if applicable).';
+                    displayResults(data.data, scrapeType); // data.data contains the actual scrape output
+                    if (data.report_generated && data.report_url) {
+                        viewReportLink.href = data.report_url;
+                        viewReportLink.style.display = 'block';
+                        noReportText.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                statusDiv.textContent = `Network or script error: ${error.message}. Check the scraper console.`;
+                resultsDiv.innerHTML = '<p>An error occurred.</p>';
+                console.error("Fetch error:", error);
+            }
+        });
+
+        function displayResults(data, type) {
+            resultsDiv.innerHTML = ''; // Clear previous results
+            if (!data) {
+                resultsDiv.innerHTML = '<p>No data returned or an error occurred.</p>';
+                return;
+            }
+
+            const title = document.createElement('h3');
+            title.textContent = \`Results for: \${type.replace('_', ' ')}\`;
+            resultsDiv.appendChild(title);
+
+            // Simple JSON display for now, can be enhanced with specific templates later
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(data, null, 2);
+            resultsDiv.appendChild(pre);
+        }
+    </script>
+</body>
+</html>
