@@ -286,13 +286,34 @@
 
             let endpoint = '';
             const params = new URLSearchParams();
-            params.append('analyze_sentiment', analyzeSentiment);
-            if (translateTo) params.append('translate_to', translateTo);
 
-            if (scrapeType === 'profile') endpoint = `/scrape_profile?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            else if (scrapeType === 'search') endpoint = `/scrape_search?keywords=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            else if (scrapeType === 'post_details') endpoint = `/scrape_post?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            else { statusDiv.textContent = 'Error: Invalid scrape type selected.'; return; }
+            // Add action-specific parameter first
+            if (scrapeType === 'profile' || scrapeType === 'post_details') {
+                params.append('url', targetUrl);
+            } else if (scrapeType === 'search') {
+                params.append('keywords', targetUrl);
+            } else {
+                statusDiv.textContent = 'Error: Invalid scrape type selected.';
+                return;
+            }
+
+            // Add common parameters
+            params.append('analyze_sentiment', analyzeSentiment.toString()); // Ensure boolean is string
+            if (translateTo) {
+                params.append('translate_to', translateTo);
+            }
+
+            // Construct the endpoint
+            if (scrapeType === 'profile') {
+                endpoint = `/scrape_profile?${params.toString()}`;
+            } else if (scrapeType === 'search') {
+                endpoint = `/scrape_search?${params.toString()}`;
+            } else if (scrapeType === 'post_details') {
+                endpoint = `/scrape_post?${params.toString()}`;
+            }
+            // --- END OF SIMPLIFIED CORRECTION ---
+
+            console.log("Requesting endpoint:", endpoint); // For debugging
 
             try {
                 const response = await fetch(endpoint);
@@ -304,7 +325,7 @@
                     resultsDiv.innerHTML = '<p>Scraping failed. See status for details.</p>';
                 } else {
                     statusDiv.textContent = 'Scrape completed successfully! Report generated (if applicable).';
-                    displayResults(data.data, scrapeType, data.query || data.url); // Pass original query/url for context
+                    displayResults(data.data, scrapeType, targetUrl); // Pass targetUrl as context for display
                     if (data.report_generated && data.report_url) {
                         viewReportLink.href = data.report_url;
                         viewReportLink.style.display = 'block';
