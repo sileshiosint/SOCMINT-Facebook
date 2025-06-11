@@ -3,9 +3,12 @@ import argparse
 import json
 import traceback
 from browser_handler import get_browser_driver
+# Ensure text_utils is available if scraper_core uses it directly (it does)
+# from text_utils import analyze_sentiment_vader
 from scraper_core import get_public_profile_data, search_facebook, get_post_details
 
 def main():
+    # ... (ArgumentParser setup from previous version) ...
     parser = argparse.ArgumentParser(
         description="Facebook OSINT Tool using browser automation.",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -18,42 +21,42 @@ def main():
                  "  python facebook_scraper.py --search \"climate change activism\"\n\n"
                  "  # Get details for a specific post\n"
                  "  python facebook_scraper.py --post-url \"https://www.facebook.com/username/posts/postid\"\n\n"
+                 "  # Scrape profile and analyze sentiment\n"
+                 "  python facebook_scraper.py --profile-url \"https://www.facebook.com/somepublicprofile\" --analyze-sentiment\n\n"
                  "Notes:\n"
                  "- Ensure Chrome is running with --remote-debugging-port=9222 OR provide --profile-path.\n"
                  "- Selectors are experimental and may need adjustment."
     )
-    parser.add_argument("--remote-port", type=int, default=9222,
-                        help="Port for Chrome remote debugging (default: 9222).")
-    parser.add_argument("--profile-path", type=str, default=None,
-                        help="Path to Chrome user data directory. Used if remote debugging fails.")
+    parser.add_argument("--remote-port", type=int, default=9222, help="Port for Chrome remote debugging.")
+    parser.add_argument("--profile-path", type=str, default=None, help="Path to Chrome user data directory.")
 
     action_group = parser.add_mutually_exclusive_group(required=True)
     action_group.add_argument("--profile-url", type=str, help="URL of the Facebook profile to scrape.")
-    action_group.add_argument("--search", type=str, help="Keywords to search on Facebook (public posts).")
+    action_group.add_argument("--search", type=str, help="Keywords to search on Facebook.")
     action_group.add_argument("--post-url", type=str, help="URL of a single Facebook post to get details.")
+
+    # New argument for sentiment analysis
+    parser.add_argument("--analyze-sentiment", action="store_true",
+                        help="Enable sentiment analysis for extracted text (posts, comments).")
 
     args = parser.parse_args()
 
-    print("Facebook OSINT Tool")
-    print("Initializing browser... This might take a moment.")
-
+    # ... (Browser initialization) ...
+    print("Facebook OSINT Tool") # Simplified startup message
     driver = get_browser_driver(remote_port=args.remote_port, chrome_profile_path=args.profile_path)
 
     if driver:
-        print("Browser initialized successfully.")
         output_data = None
         try:
             if args.profile_url:
                 print(f"--- Scraping Profile: {args.profile_url} ---")
-                output_data = get_public_profile_data(driver, args.profile_url)
-
+                output_data = get_public_profile_data(driver, args.profile_url, analyze_sentiment_flag=args.analyze_sentiment)
             elif args.search:
                 print(f"--- Searching Facebook for: '{args.search}' ---")
-                output_data = search_facebook(driver, args.search)
-
+                output_data = search_facebook(driver, args.search, analyze_sentiment_flag=args.analyze_sentiment)
             elif args.post_url:
                 print(f"--- Getting details for post: {args.post_url} ---")
-                output_data = get_post_details(driver, args.post_url)
+                output_data = get_post_details(driver, args.post_url, analyze_sentiment_flag=args.analyze_sentiment)
 
             if output_data:
                 print("\n--- Results ---")
@@ -69,11 +72,13 @@ def main():
             print(f"An critical error occurred: {e}")
             traceback.print_exc()
         finally:
-            print("Closing browser...")
-            driver.quit()
-            print("Browser closed.")
+            if driver: # Ensure driver exists before quitting
+                print("Closing browser...")
+                driver.quit()
+                print("Browser closed.")
     else:
         print("Failed to initialize browser. Check Chrome setup. Exiting.")
+
 
 if __name__ == "__main__":
     main()

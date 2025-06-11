@@ -4,30 +4,78 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
-from urllib.parse import quote_plus # Ensure it's imported if not already at top level
+from urllib.parse import quote_plus
+from text_utils import analyze_sentiment_vader # Import the new function
 
-# --- Helper Functions --- (Keep existing helpers: scroll_to_bottom, wait_for_element, wait_for_elements)
+# --- CAPTCHA Detection and Handling ---
+def check_for_captcha_and_pause(driver: WebDriver):
+    """
+    Checks for common CAPTCHA indicators and pauses for manual intervention.
+    Returns True if a CAPTCHA was suspected and paused, False otherwise.
+    """
+    # Common CAPTCHA related keywords in title or URL
+    captcha_keywords = [
+        "captcha", "security check", "are you human", "verify your account",
+        "recaptcha", "checkpoint", "puzzle"
+    ]
+
+    current_url = driver.current_url.lower()
+    current_title = driver.title.lower()
+
+    # Check URL and Title
+    for keyword in captcha_keywords:
+        if keyword in current_url or keyword in current_title:
+            print(f"CAPTCHA or security check suspected based on keyword '{keyword}' in URL/Title.")
+            print(f"URL: {driver.current_url}")
+            print(f"Title: {driver.title}")
+            input("!!! CAPTCHA/Security Check Detected !!!\nPlease solve it in the browser. After solving, press Enter here to continue...")
+            return True
+
+    # Check for common CAPTCHA iFrames (e.g., reCAPTCHA)
+    # This is a basic check, more sophisticated iframe checks might be needed
+    captcha_iframes_selectors = [
+        "//iframe[contains(@src, 'recaptcha')]",
+        "//iframe[contains(@title, 'captcha')]",
+        "//iframe[contains(@name, 'cframe')]", # Common for hCaptcha
+    ]
+    for selector in captcha_iframes_selectors:
+        iframes = driver.find_elements(By.XPATH, selector)
+        if iframes:
+            print(f"CAPTCHA or security check suspected based on iframe selector: {selector}")
+            input("!!! CAPTCHA/Security Check (iframe) Detected !!!\nPlease solve it in the browser. After solving, press Enter here to continue...")
+            return True
+
+    # Check for common CAPTCHA input fields or images (very generic)
+    # These are highly likely to need customization
+    # captcha_elements_selectors = [
+    #     "//input[contains(@aria-label, 'Enter the characters')]",
+    #     "//img[contains(@alt, 'captcha')]",
+    # ]
+    # for selector in captcha_elements_selectors:
+    #     elements = driver.find_elements(By.XPATH, selector)
+    #     if elements:
+    #         print(f"CAPTCHA or security check suspected based on element selector: {selector}")
+    #         input("!!! CAPTCHA/Security Check (element) Detected !!!\nPlease solve it in the browser. After solving, press Enter here to continue...")
+    #         return True
+
+    return False
+
+
+# --- Helper Functions --- (scroll_to_bottom, wait_for_element, wait_for_elements - kept as is)
 def scroll_to_bottom(driver: WebDriver, max_scrolls=5, pause_time=2.5, scroll_element=None):
-    """Scrolls to the bottom of the page or a specific element to load dynamic content."""
     print(f"Scrolling (element: {'body' if not scroll_element else 'specific element'})...")
-
     if scroll_element:
-        # Scroll within a specific element
         script = "arguments[0].scrollTop = arguments[0].scrollHeight"
         target_element = scroll_element
     else:
-        # Scroll the whole page
         script = "window.scrollTo(0, document.body.scrollHeight);"
-        target_element = driver.execute_script("return document.body") # Fallback for height check
-
+        target_element = driver.execute_script("return document.body")
     last_height_script = "return arguments[0].scrollHeight" if scroll_element else "return document.body.scrollHeight"
     last_height = driver.execute_script(last_height_script, target_element if scroll_element else driver.execute_script("return document.body"))
-
     scrolls = 0
     for _ in range(max_scrolls):
         driver.execute_script(script, target_element if scroll_element else driver.execute_script("return document.body"))
         time.sleep(pause_time)
-
         current_height = driver.execute_script(last_height_script, target_element if scroll_element else driver.execute_script("return document.body"))
         if current_height == last_height:
             print("Reached end of scrollable content for the target.")
@@ -38,57 +86,40 @@ def scroll_to_bottom(driver: WebDriver, max_scrolls=5, pause_time=2.5, scroll_el
     if scrolls == max_scrolls:
         print("Reached max scroll limit for the target.")
 
-
 def wait_for_element(driver: WebDriver, by: By, value: str, timeout=10, parent_element=None):
-    """Waits for a single element to be present (optionally within a parent) and returns it."""
     target = parent_element if parent_element else driver
     try:
-        element = WebDriverWait(target, timeout).until(
-            EC.presence_of_element_located((by, value))
-        )
+        element = WebDriverWait(target, timeout).until(EC.presence_of_element_located((by, value)))
         return element
-    except Exception:
-        return None
+    except Exception: return None
 
 def wait_for_elements(driver: WebDriver, by: By, value: str, timeout=10, parent_element=None):
-    """Waits for multiple elements to be present (optionally within a parent) and returns them."""
     target = parent_element if parent_element else driver
     try:
-        elements = WebDriverWait(target, timeout).until(
-            EC.presence_of_all_elements_located((by, value))
-        )
+        elements = WebDriverWait(target, timeout).until(EC.presence_of_all_elements_located((by, value)))
         return elements
-    except Exception:
-        return []
+    except Exception: return []
+
 
 # --- Main Scraping Functions ---
+# Modify existing scraping functions to call check_for_captcha_and_pause
 
-def get_public_profile_data(driver: WebDriver, profile_url: str):
-    # ... (Keep existing implementation) ...
-    """
-    Scrapes data from a public Facebook profile.
-    Focuses on profile name and posts for this iteration.
-    """
+def get_public_profile_data(driver: WebDriver, profile_url: str, analyze_sentiment_flag: bool = False):
     print(f"Navigating to profile: {profile_url}")
     driver.get(profile_url)
     WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+    if check_for_captcha_and_pause(driver): # Check after initial load
+        # Optionally re-check or re-load elements if CAPTCHA was solved
+        WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
 
-    profile_data = {
-        "url": profile_url,
-        "name": None,
-        "posts": [],
-        "photo_links": [], # TODO
-        "friend_names_or_links": [], # TODO
-        "group_names_or_links": []   # TODO
-    }
 
+    profile_data = {"url": profile_url, "name": None, "posts": [], "photo_links": [], "friend_names_or_links": [], "group_names_or_links": []}
     print("Attempting to extract profile name...")
+    # ... (rest of name extraction logic)
     name_selectors = [
-        "//h1",
-        "//div[@role='main']//h1",
+        "//h1", "//div[@role='main']//h1",
         "//div[contains(@aria-label,'profile name')]//span[not(contains(@class,'visuallyhidden'))]",
-        "//span[contains(@class,'profile-name')]",
-        "//div[@id='cover-name-root']//h1",
+        "//span[contains(@class,'profile-name')]", "//div[@id='cover-name-root']//h1",
         "//div[@data-testid='profile-name']//span[1]"
     ]
     name_element = None
@@ -99,11 +130,23 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
                 profile_data["name"] = name_element.text.strip()
                 print(f"Profile Name Found: {profile_data['name']} (using selector: {selector})")
                 break
-        except:
-            continue
-
+        except: continue
     if not profile_data["name"]:
         print("Profile name could not be extracted with common selectors.")
+        if check_for_captcha_and_pause(driver): # Check if name extraction failed due to CAPTCHA
+             # Retry name extraction or relevant part if needed after CAPTCHA
+            # For simplicity, we'll just re-try finding the name once.
+            for selector in name_selectors:
+                try:
+                    name_element = wait_for_element(driver, By.XPATH, selector, timeout=5)
+                    if name_element and name_element.text.strip():
+                        profile_data["name"] = name_element.text.strip()
+                        print(f"Profile Name Found after CAPTCHA: {profile_data['name']} (using selector: {selector})")
+                        break
+                except: continue
+            if not profile_data["name"]:
+                 print("Still could not extract profile name after CAPTCHA.")
+
 
     print("Checking for a 'Posts' tab/filter...")
     try:
@@ -131,7 +174,11 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
     except Exception as e:
         print(f"Error while trying to find or click 'Posts' tab: {e}")
 
+
     scroll_to_bottom(driver, max_scrolls=5, pause_time=3)
+    if check_for_captcha_and_pause(driver): # Check after scrolling
+        WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+
 
     print("Attempting to extract posts...")
     post_container_selectors = [
@@ -142,7 +189,6 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
         "//div[contains(@class, '_5pcb')]",
         "//div[div//span[contains(text(), 'ago')] and div//a[contains(@href, '/posts/') or contains(@href, '/videos/') or contains(@href, '/photos/')]]"
     ]
-
     post_elements = []
     for selector in post_container_selectors:
         elements = wait_for_elements(driver, By.XPATH, selector, timeout=5)
@@ -153,10 +199,22 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
 
     if not post_elements:
         print("No post containers found with the tried selectors.")
+        if check_for_captcha_and_pause(driver):
+            WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            # Retry finding post_elements
+            for selector in post_container_selectors: # Simplified retry
+                elements = wait_for_elements(driver, By.XPATH, selector, timeout=5)
+                if elements:
+                    print(f"Found {len(elements)} post containers after CAPTCHA with selector: {selector}")
+                    post_elements = elements
+                    break
+            if not post_elements:
+                print("Still no post containers found after CAPTCHA.")
+
 
     for i, post_el in enumerate(post_elements):
         print(f"Processing post {i+1}/{len(post_elements)}...")
-        post_data = {"content": None, "timestamp": None, "timestamp_text": None, "author": "Profile Owner (assumed)", "url": None}
+        post_data = {"content": None, "timestamp": None, "timestamp_text": None, "author": "Profile Owner (assumed)", "url": None, "sentiment": None}
 
         content_selectors = [
             ".//div[contains(@class, 'userContent')]/p",
@@ -168,15 +226,14 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
         ]
         for selector in content_selectors:
             try:
-                content_element = post_el.find_element(By.XPATH, selector) # Changed to find_element from post_el
+                content_element = post_el.find_element(By.XPATH, selector)
                 post_data["content"] = content_element.text.strip()
                 if post_data["content"]:
-                    print(f"  Post content found (first 100 chars): {post_data['content'][:100]}...")
+                    if analyze_sentiment_flag:
+                        post_data["sentiment"] = analyze_sentiment_vader(post_data["content"])
                     break
             except:
                 continue
-        if not post_data["content"]:
-             print("  Post content not found for this post.")
 
         timestamp_selectors = [
             ".//a[contains(@href,'/posts/') or contains(@href,'/videos/') or contains(@href,'/photos/') or contains(@href,'/story.php') or contains(@href,'/permalink/')]",
@@ -186,34 +243,28 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
         ]
         for selector in timestamp_selectors:
             try:
-                timestamp_element = post_el.find_element(By.XPATH, selector) # Changed to find_element from post_el
+                timestamp_element = post_el.find_element(By.XPATH, selector)
                 post_data["url"] = timestamp_element.get_attribute("href")
                 post_data["timestamp_text"] = timestamp_element.text.strip()
-
                 try:
-                    # Check for data-utime on abbr child first
                     abbr_element = timestamp_element.find_element(By.XPATH, ".//abbr[@data-utime]")
                     data_utime = abbr_element.get_attribute("data-utime")
                     post_data["timestamp"] = int(data_utime)
                 except:
-                    # If not on abbr, check the link itself
                     try:
                         data_utime_on_link = timestamp_element.get_attribute("data-utime")
                         if data_utime_on_link:
                              post_data["timestamp"] = int(data_utime_on_link)
                     except:
-                        pass # Keep timestamp_text as fallback
-
+                        pass
                 if post_data["url"]:
-                    print(f"  Post timestamp/URL found: {post_data['timestamp_text']}, URL: {post_data['url']}")
                     break
             except:
                 continue
-        if not post_data["url"]:
-            print("  Post timestamp/URL not found for this post.")
 
         if post_data["content"] or post_data["url"]:
             profile_data["posts"].append(post_data)
+
 
     print("TODO: Implement photo link extraction.")
     print("TODO: Implement friends list extraction (highly dependent on UI and privacy).")
@@ -221,23 +272,22 @@ def get_public_profile_data(driver: WebDriver, profile_url: str):
     print(f"Finished scraping profile data attempt for: {profile_url}")
     return profile_data
 
-def search_facebook(driver: WebDriver, search_query: str):
-    # ... (Keep existing implementation) ...
+
+def search_facebook(driver: WebDriver, search_query: str, analyze_sentiment_flag: bool = False):
     print(f"Performing search for: '{search_query}'")
     encoded_query = quote_plus(search_query)
     search_url = f"https://www.facebook.com/search/posts/?q={encoded_query}"
-
     print(f"Navigating to search URL: {search_url}")
     driver.get(search_url)
     WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete')
-    time.sleep(3)
+    if check_for_captcha_and_pause(driver): # Check after initial load
+        WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
 
-    search_results_data = {
-        "query": search_query,
-        "discussions": []
-    }
-
+    search_results_data = {"query": search_query, "discussions": []}
     scroll_to_bottom(driver, max_scrolls=5, pause_time=3)
+    if check_for_captcha_and_pause(driver): # Check after scrolling
+        WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+
 
     print("Attempting to extract search results (posts/discussions)...")
     result_item_selectors = [
@@ -247,7 +297,6 @@ def search_facebook(driver: WebDriver, search_query: str):
         "//div[contains(@aria-label, 'Search result') or contains(@aria-label, 'Search Result')]",
         "//div[h3//a[contains(@href, '/groups/') or contains(@href, '/profile.php') or contains(@href, '/pages/')]]"
     ]
-
     search_post_elements = []
     for selector in result_item_selectors:
         elements = wait_for_elements(driver, By.XPATH, selector, timeout=7)
@@ -258,15 +307,26 @@ def search_facebook(driver: WebDriver, search_query: str):
 
     if not search_post_elements:
         print("No search result items found with the tried selectors.")
+        if check_for_captcha_and_pause(driver):
+            WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            # Retry finding search_post_elements
+            for selector in result_item_selectors: # Simplified retry
+                elements = wait_for_elements(driver, By.XPATH, selector, timeout=7)
+                if elements:
+                    print(f"Found {len(elements)} search result items after CAPTCHA with selector: {selector}")
+                    search_post_elements = elements
+                    break
+            if not search_post_elements:
+                print("Still no search result items found after CAPTCHA.")
 
+    # ... (rest of search result item processing logic remains the same)
     for i, item_el in enumerate(search_post_elements):
         print(f"Processing search result {i+1}/{len(search_post_elements)}...")
         discussion_data = {
             "content": None, "author_name": None, "author_url": None,
             "timestamp_text": None, "timestamp": None, "url": None,
-            "source_group_or_page": None
+            "source_group_or_page": None, "sentiment": None
         }
-
         content_selectors = [
             ".//div[@data-ad-preview='message']", ".//div[contains(@class, 'userContent')]/p",
             ".//div[contains(@data-testid, 'post_message')]",
@@ -278,7 +338,8 @@ def search_facebook(driver: WebDriver, search_query: str):
                 content_element = item_el.find_element(By.XPATH, selector)
                 discussion_data["content"] = content_element.text.strip()
                 if discussion_data["content"]:
-                    print(f"  Content found (first 100 chars): {discussion_data['content'][:100]}...")
+                    if analyze_sentiment_flag:
+                        discussion_data["sentiment"] = analyze_sentiment_vader(discussion_data["content"])
                     break
             except: continue
 
@@ -293,9 +354,7 @@ def search_facebook(driver: WebDriver, search_query: str):
                 author_link_element = item_el.find_element(By.XPATH, selector)
                 discussion_data["author_name"] = author_link_element.text.strip()
                 discussion_data["author_url"] = author_link_element.get_attribute("href")
-                if discussion_data["author_name"] and discussion_data["author_url"]:
-                    print(f"  Author found: {discussion_data['author_name']} ({discussion_data['author_url']})")
-                    break
+                if discussion_data["author_name"] and discussion_data["author_url"]: break
             except: continue
 
         timestamp_selectors = [
@@ -316,9 +375,7 @@ def search_facebook(driver: WebDriver, search_query: str):
                         data_utime_link = ts_element.get_attribute("data-utime")
                         if data_utime_link: discussion_data["timestamp"] = int(data_utime_link)
                     except: pass
-                if discussion_data["url"]:
-                    print(f"  Timestamp/URL found: {discussion_data['timestamp_text']}, URL: {discussion_data['url']}")
-                    break
+                if discussion_data["url"]: break
             except: continue
 
         source_selectors = [
@@ -330,149 +387,110 @@ def search_facebook(driver: WebDriver, search_query: str):
             try:
                 source_link_element = item_el.find_element(By.XPATH, selector)
                 discussion_data["source_group_or_page"] = source_link_element.get_attribute("href")
-                if discussion_data["source_group_or_page"]:
-                    print(f"  Source group/page found: {discussion_data['source_group_or_page']}")
-                    break
+                if discussion_data["source_group_or_page"]: break
             except: continue
 
         if discussion_data["content"] or discussion_data["url"]:
             search_results_data["discussions"].append(discussion_data)
-        elif not discussion_data["content"] and not discussion_data["url"]:
-             print("  Could not extract meaningful data (content or URL) for this search item.")
+
 
     print(f"Finished search attempt for: '{search_query}'")
     return search_results_data
 
 
-def get_post_details(driver: WebDriver, post_url: str):
-    """
-    Extracts details from a single post page, like reactions and comments.
-    """
+def get_post_details(driver: WebDriver, post_url: str, analyze_sentiment_flag: bool = False):
     print(f"Navigating to post: {post_url}")
     driver.get(post_url)
     WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete')
-    time.sleep(3) # Allow post to initially load
+    if check_for_captcha_and_pause(driver): # Check after initial load
+        WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
 
-    post_details_data = {
-        "url": post_url,
-        "reactions": {"types": {}, "total_count": 0, "summary_text": None},
-        "comments": [],
-        "comment_count_text": None
-    }
+    post_details_data = {"url": post_url, "reactions": {"types": {}, "total_count": 0, "summary_text": None}, "comments": [], "comment_count_text": None}
 
-    # --- Extract Reactions ---
-    # This is highly complex. Reactions are often in a summary string, or require clicking a button
-    # to open a dialog, then scraping that dialog.
+    # Reaction extraction logic (kept brief for this example, but would be similar)
     print("Attempting to extract reactions...")
     reaction_summary_selectors = [
-        "//span[@role='toolbar']//span[@role='button']/span[@aria-label]", # Summary text often in aria-label of a span inside a button
-        "//div[@aria-label='Reactions']//span[contains(text(),'and')]", # e.g., "You, John Doe and 15 others"
-        "//a[contains(@href,'/ufi/reaction/profile/browser/')]/@aria-label", # Links that open reaction lists
-        "//span[contains(text(),'Like')]/parent::div/following-sibling::span" # Count next to "Like" button text
+        "//span[@role='toolbar']//span[@role='button']/span[@aria-label]",
+        "//div[@aria-label='Reactions']//span[contains(text(),'and')]",
+        "//a[contains(@href,'/ufi/reaction/profile/browser/')]/@aria-label",
+        "//span[contains(text(),'Like')]/parent::div/following-sibling::span"
     ]
-    reaction_details_button_selectors = [ # Button to open the detailed reaction list
-        "//span[@role='toolbar']//span[@role='button'][span[@aria-label]]", # The button itself
-        "//div[@aria-label='Reactions']//div[@role='button']"
-    ]
-
-    # Try to get a summary first
     for selector in reaction_summary_selectors:
         summary_element = wait_for_element(driver, By.XPATH, selector, timeout=3)
         if summary_element:
             text = summary_element.text.strip() if summary_element.text else summary_element.get_attribute('aria-label')
             if text:
                 post_details_data["reactions"]["summary_text"] = text.strip()
-                print(f"  Reaction summary found: {text.strip()}")
-                # Basic parsing of total count from summary (e.g., "K L and N others" -> N+2)
-                # This is a very rough heuristic
-                parts = text.split(' ')
                 try:
-                    if "others" in text and parts[-2].isdigit():
-                        post_details_data["reactions"]["total_count"] = int(parts[-2]) + text.count(',') + 1
-                    elif text.isdigit(): # If summary is just a number
+                    if "others" in text and text.split(' ')[-2].isdigit():
+                        post_details_data["reactions"]["total_count"] = int(text.split(' ')[-2]) + text.count(',') + 1
+                    elif text.isdigit():
                          post_details_data["reactions"]["total_count"] = int(text)
-                except: pass # Ignore parsing errors
+                except: pass
                 break
-
-    # TODO: Implement clicking reaction_details_button_selectors and scraping the dialog if summary is not enough.
-    # This would involve:
-    # 1. Clicking the button.
-    # 2. Waiting for the dialog/pop-up to appear.
-    # 3. Scraping reaction types (e.g., img alt text or aria-labels) and counts from the dialog.
-    # 4. Closing the dialog.
     print("TODO: Advanced reaction extraction (clicking for details) is not yet implemented.")
 
-
-    # --- Extract Comment Count (Often displayed near comments section) ---
+    # Comment count
     comment_count_selectors = [
-        "//span[contains(text(),'Comment') or contains(text(),'comment')][not(ancestor::div[@role='article'])]", # Text like "X Comments"
-        "//div[@aria-label='Comments']//h3", # A heading for the comments section
+        "//span[contains(text(),'Comment') or contains(text(),'comment')][not(ancestor::div[@role='article'])]",
+        "//div[@aria-label='Comments']//h3",
     ]
     for selector in comment_count_selectors:
         count_el = wait_for_element(driver, By.XPATH, selector, timeout=3)
         if count_el and count_el.text.strip():
             post_details_data["comment_count_text"] = count_el.text.strip()
-            print(f"  Comment count text found: {post_details_data['comment_count_text']}")
             break
 
-    # --- Scroll to load comments / Click "View more comments" ---
-    # Comments section might have its own scroll container or "view more" buttons.
-    # First, try to find a general "View more comments" or similar button.
+    # Load more comments & extract
     view_more_comments_selectors = [
         "//span[contains(text(),'View more comments') or contains(text(),'Load more comments')]/ancestor::div[@role='button']",
         "//a[contains(@href,'comment/replies') and contains(.,'more comment')]",
         "//div[@role='button'][.//span[starts-with(text(),'View') and contains(text(),'comment')]]"
     ]
-    for _ in range(3): # Try clicking "view more" a few times
+    for _ in range(3):
         clicked_more = False
         for selector in view_more_comments_selectors:
             view_more_button = wait_for_element(driver, By.XPATH, selector, timeout=2)
             if view_more_button and view_more_button.is_displayed():
-                print(f"  Found and clicking '{view_more_button.text.strip()}' button...")
                 try:
                     driver.execute_script("arguments[0].click();", view_more_button)
-                    time.sleep(2.5) # Wait for comments to load
-                    clicked_more = True
-                    break
-                except Exception as e:
-                    print(f"    Error clicking view more comments: {e}")
+                    time.sleep(2.5)
+                    clicked_more = True; break
+                except: pass
             if clicked_more: break
         if not clicked_more:
-            # If no button found, try general scroll
-            print("  No 'View more comments' button found or clickable, trying general scroll for comments.")
-            scroll_to_bottom(driver, max_scrolls=2, pause_time=2) # Short scroll to trigger auto-load
-            break # Break after one general scroll if no specific button
+            scroll_to_bottom(driver, max_scrolls=2, pause_time=2); break
 
-    # --- Extract Comments ---
     print("Attempting to extract comments...")
     comment_container_selectors = [
-        "//div[@aria-label='Comment']", # ARIA label for individual comment
-        "//div[contains(@class,'comment-class-placeholder')]", # Hypothetical class
-        "//ul/li[.//a[contains(@href,'/user/')]]", # List item that seems to contain user link (comment)
-        "//div[@role='comment']" # Role based
+        "//div[@aria-label='Comment']", "//div[contains(@class,'comment-class-placeholder')]",
+        "//ul/li[.//a[contains(@href,'/user/')]]", "//div[@role='comment']"
     ]
-
     comment_elements = []
     for selector in comment_container_selectors:
         elements = wait_for_elements(driver, By.XPATH, selector, timeout=5)
         if elements:
-            print(f"Found {len(elements)} potential comment containers with selector: {selector}")
-            comment_elements = elements
-            break
+            comment_elements = elements; break
 
     if not comment_elements:
         print("  No comment containers found with the tried selectors.")
+        if check_for_captcha_and_pause(driver):
+            WebDriverWait(driver, 10).until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            # Retry finding comments
+            for selector in comment_container_selectors: # Simplified retry
+                elements = wait_for_elements(driver, By.XPATH, selector, timeout=5)
+                if elements:
+                    print(f"Found {len(elements)} comments after CAPTCHA with selector: {selector}")
+                    comment_elements = elements
+                    break
+            if not comment_elements:
+                print("Still no comments found after CAPTCHA.")
 
     for i, comment_el in enumerate(comment_elements):
-        print(f"  Processing comment {i+1}/{len(comment_elements)}...")
-        comment_data = {"author_name": None, "author_url": None, "content": None, "timestamp_text": None, "timestamp": None}
-
-        # Comment Author
+        comment_data = {"author_name": None, "author_url": None, "content": None, "timestamp_text": None, "timestamp": None, "sentiment": None}
         author_selectors = [
-            ".//a[contains(@href,'facebook.com/') and not(contains(@href,'/ufi/reaction')) and string-length(normalize-space(.)) > 0 and not(img)]", # General link to a profile
-            ".//div[@aria-label='Comment author']//a", # Specific ARIA label
-            ".//h3//a", # Author name in a heading
-            ".//span[@class='_6qw4']" # An old FB class for comment author
+            ".//a[contains(@href,'facebook.com/') and not(contains(@href,'/ufi/reaction')) and string-length(normalize-space(.)) > 0 and not(img)]",
+            ".//div[@aria-label='Comment author']//a", ".//h3//a", ".//span[@class='_6qw4']"
         ]
         for selector in author_selectors:
             author_element = wait_for_element(driver, By.XPATH, selector, timeout=1, parent_element=comment_el)
@@ -480,26 +498,20 @@ def get_post_details(driver: WebDriver, post_url: str):
                 comment_data["author_name"] = author_element.text.strip()
                 comment_data["author_url"] = author_element.get_attribute("href")
                 break
-        if not comment_data["author_name"]: print(f"    Author not found for comment {i+1}")
-
-        # Comment Content
         content_selectors = [
-            ".//span[contains(@class,'comment-text-class')]", # Hypothetical
-            ".//div[@data-testid='comment_text']", # Test ID
-            ".//div[@dir='auto' and not(.//div[@role='button'])]", # Div with text, not containing buttons
-            ".//span[string-length(normalize-space(.)) > 0 and not(ancestor::a)]" # A span with text not part of a link (heuristic)
+            ".//span[contains(@class,'comment-text-class')]", ".//div[@data-testid='comment_text']",
+            ".//div[@dir='auto' and not(.//div[@role='button'])]",
+            ".//span[string-length(normalize-space(.)) > 0 and not(ancestor::a)]"
         ]
         for selector in content_selectors:
             content_element = wait_for_element(driver, By.XPATH, selector, timeout=1, parent_element=comment_el)
             if content_element and content_element.text.strip():
                 comment_data["content"] = content_element.text.strip()
+                if analyze_sentiment_flag:
+                    comment_data["sentiment"] = analyze_sentiment_vader(comment_data["content"])
                 break
-        if not comment_data["content"]: print(f"    Content not found for comment {i+1}")
-
-        # Comment Timestamp
         timestamp_selectors = [
-            ".//abbr[@data-utime]/parent::a", # Utime on abbr inside link
-            ".//a[contains(@href,'comment_id=')]", # Link with comment_id usually has timestamp
+            ".//abbr[@data-utime]/parent::a", ".//a[contains(@href,'comment_id=')]",
             ".//span[contains(text(),'hr') or contains(text(),'min') or contains(text(),'Just now') or contains(text(),'Yesterday')]/ancestor::a"
         ]
         for selector in timestamp_selectors:
@@ -509,19 +521,15 @@ def get_post_details(driver: WebDriver, post_url: str):
                 try:
                     abbr = ts_element.find_element(By.XPATH, ".//abbr[@data-utime]")
                     comment_data["timestamp"] = int(abbr.get_attribute("data-utime"))
-                except: pass # Ignore if no data-utime abbr
+                except: pass
                 break
-        if not comment_data["timestamp_text"]: print(f"    Timestamp not found for comment {i+1}")
-
         if comment_data["author_name"] and comment_data["content"]:
             post_details_data["comments"].append(comment_data)
-            print(f"    Added comment by {comment_data['author_name']}: {comment_data['content'][:50]}...")
-        else:
-            print(f"    Could not extract full details for comment {i+1}.")
 
     print(f"Finished scraping post details attempt for: {post_url}")
     return post_details_data
 
+# Keep the if __name__ == '__main__': block as is
 if __name__ == '__main__':
     print("scraper_core.py executed directly (for testing purposes).")
     pass
