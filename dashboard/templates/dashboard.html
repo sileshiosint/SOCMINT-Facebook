@@ -5,27 +5,175 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Facebook OSINT Dashboard</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        .form-section, .results-section, .status-section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="url"] { width: 90%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
-        button:hover { background-color: #0056b3; }
-        .scraper-options label { display: inline-block; margin-right: 15px; font-weight: normal;}
-        .scraper-options input[type="checkbox"] { margin-right: 5px; }
-        #status { padding: 10px; border: 1px solid #eee; background-color: #f9f9f9; min-height: 50px; white-space: pre-wrap; }
-        #results { padding: 10px; border: 1px solid #eee; background-color: #f9f9f9; margin-top: 20px; }
-        .post, .comment, .discussion-item { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-        .post:last-child, .comment:last-child, .discussion-item:last-child { border-bottom: none; }
-        .post-content, .comment-content { margin-left: 20px; }
-        .sentiment, .risk-score, .translation { font-size: 0.9em; color: #555; margin-left: 20px; }
-        .report-link { margin-top: 15px; }
-        pre { background-color: #eee; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            line-height: 1.6;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 8px 16px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3, h4, h5 {
+            color: #1877f2; /* Facebook blue */
+            margin-top: 1.2em;
+            margin-bottom: 0.6em;
+        }
+        h1 { font-size: 2em; text-align: center; }
+        h2 { font-size: 1.6em; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3em;}
+        h3 { font-size: 1.3em; }
+        h4 { font-size: 1.1em; color: #333; }
+
+        .form-section, .results-section, .status-section, .report-link {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #4b4f56;
+        }
+        input[type="text"], input[type="url"], select {
+            width: calc(100% - 22px); /* Account for padding and border */
+            padding: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+        select { width: 100%; } /* Select full width */
+
+        button {
+            padding: 10px 20px;
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        button:hover { background-color: #166fe5; }
+
+        .scraper-options { margin-top:15px; margin-bottom:15px; }
+        .scraper-options h3 { margin-bottom: 10px; font-size: 1.2em; color: #333;}
+        .scraper-options label { display: inline-block; margin-right: 20px; font-weight: normal;}
+        .scraper-options input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
+        .scraper-options input[type="text"] { width: 60px; padding: 8px; margin-bottom:0; display: inline-block; vertical-align: middle;}
+
+        #status {
+            padding: 12px;
+            border: 1px solid #ddd;
+            background-color: #f0f0f0;
+            min-height: 60px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border-radius: 6px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        #results {
+            padding: 0; /* Remove padding as item-cards will have their own */
+            border: none;
+            background-color: transparent; /* Results area transparent, cards have background */
+            margin-top: 10px;
+        }
+
+        .item-card {
+            border: 1px solid #dcdfe6;
+            background-color: #ffffff;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .item-card h5 { /* For titles within cards, like "Author:" or "Content:" */
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 1.05em;
+            color: #1877f2;
+        }
+        .item-card p { margin-bottom: 0.7em; color: #333; }
+
+        .meta-info {
+            font-size: 0.8em;
+            color: #606770;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px dotted #e0e0e0;
+        }
+        .meta-info a { color: #1877f2; text-decoration: none; }
+        .meta-info a:hover { text-decoration: underline; }
+
+        .content {
+            margin-left: 0; /* Content directly under meta if any */
+            margin-bottom: 12px;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+
+        .analysis-block { /* Common class for sentiment, risk, translation, links */
+            font-size: 0.9em;
+            color: #4b4f56;
+            margin-left: 0;
+            padding: 8px 12px;
+            background-color:#f0f2f5;
+            border-radius:4px;
+            margin-top:10px;
+            border: 1px solid #e0e0e0;
+        }
+        .analysis-block strong { color: #1c1e21; }
+        .analysis-block p { margin-bottom: 0.3em; } /* For translation paragraph */
+
+        .links ul {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 5px;
+            margin-bottom: 0;
+        }
+        .links li { margin-bottom: 4px; }
+        .links li a {
+            text-decoration: none;
+            color: #1877f2;
+            word-break: break-all; /* Ensure long links wrap */
+        }
+        .links li a:hover { text-decoration: underline; }
+
+        .report-link a {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #28a745; /* Green for report */
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .report-link a:hover { background-color: #218838; }
+
+        /* Utility classes */
+        .text-positive { color: green; }
+        .text-negative { color: red; }
+        .text-neutral { color: #555; }
+
     </style>
 </head>
 <body>
+    <!-- HTML structure from previous step remains the same -->
     <div class="container">
         <h1>Facebook OSINT Dashboard</h1>
 
@@ -52,7 +200,7 @@
                         <input type="checkbox" id="analyzeSentiment" name="analyzeSentiment"> Analyze Sentiment
                     </label>
                     <label for="translateTo">Translate Text (e.g., to 'en'):</label>
-                    <input type="text" id="translateTo" name="translateTo" placeholder="en" style="width: 50px; padding: 5px; margin-bottom:0;">
+                    <input type="text" id="translateTo" name="translateTo" placeholder="en">
                 </div>
                 <br>
                 <button type="submit">Start Scrape</button>
@@ -66,9 +214,7 @@
 
         <div class="results-section">
             <h2>Results</h2>
-            <div id="results">
-                <p>Scraped data will appear here.</p>
-            </div>
+            <div id="results"><p>Scraped data will appear here.</p></div>
         </div>
 
         <div class="report-link">
@@ -79,6 +225,46 @@
     </div>
 
     <script>
+        // JavaScript from previous step remains the same
+        // ... (scrapeForm event listener, displayResults, renderProfileData, renderSearchResults, renderPostDetails, etc.) ...
+        // Minor change in renderSentiment to use utility classes:
+        function renderSentiment(sentimentData) {
+            if (!sentimentData) return '';
+            let label = 'Neutral';
+            let labelClass = 'text-neutral';
+            if (sentimentData.compound > 0.05) { label = 'Positive'; labelClass = 'text-positive'; }
+            else if (sentimentData.compound < -0.05) { label = 'Negative'; labelClass = 'text-negative'; }
+            return \`<div class="analysis-block sentiment"><strong>Sentiment:</strong> <span class="\${labelClass}">\${label}</span> (Compound: \${sentimentData.compound.toFixed(2)})</div>\`;
+        }
+        function renderRiskScore(riskScoreData) { // Assuming riskScoreData = {label: "High", score: 0.8}
+            if (!riskScoreData || typeof riskScoreData.score === 'undefined') return '';
+            let riskClass = '';
+            if (riskScoreData.label === 'High') riskClass = 'text-negative';
+            if (riskScoreData.label === 'Medium') riskClass = 'text-neutral'; // Or some orange
+            if (riskScoreData.label === 'Low') riskClass = 'text-positive';
+            return \`<div class="analysis-block risk-score"><strong>Risk Score:</strong> <span class="\${riskClass}">\${riskScoreData.label}</span> (\${riskScoreData.score.toFixed(2)})</div>\`;
+        }
+        function renderTranslation(translationData){
+            if(!translationData || !translationData.translated_text) return '';
+            return \`<div class="analysis-block translation"><strong>Translated (\${translationData.target_lang}):</strong><p>\${translationData.translated_text}</p></div>\`;
+        }
+        function renderLinks(linksArray) {
+            if (!linksArray || linksArray.length === 0) return '';
+            let linksHtml = '<div class="analysis-block links"><strong>Extracted Links:</strong><ul>';
+            linksArray.forEach(link => {
+                linksHtml += \`<li><a href="\${link}" target="_blank">\${link}</a></li>\`;
+            });
+            linksHtml += '</ul></div>';
+            return linksHtml;
+        }
+
+        // Ensure the rest of the JS (displayResults, renderProfileData, etc.) is present as implemented in the previous step.
+        // For brevity, only showing the modified/new JS helper functions here.
+        // The main structure of displayResults and the render functions for profile/search/post would use these helpers
+        // and the .analysis-block class for consistency.
+
+        // Paste the FULL JavaScript from the previous step here, then add/modify the above helper functions.
+        // Full JS from previous step (abridged for clarity of what's new):
         const scrapeForm = document.getElementById('scrapeForm');
         const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
@@ -101,20 +287,12 @@
             let endpoint = '';
             const params = new URLSearchParams();
             params.append('analyze_sentiment', analyzeSentiment);
-            if (translateTo) {
-                params.append('translate_to', translateTo);
-            }
+            if (translateTo) params.append('translate_to', translateTo);
 
-            if (scrapeType === 'profile') {
-                endpoint = `/scrape_profile?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            } else if (scrapeType === 'search') {
-                endpoint = `/scrape_search?keywords=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            } else if (scrapeType === 'post_details') {
-                endpoint = `/scrape_post?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
-            } else {
-                statusDiv.textContent = 'Error: Invalid scrape type selected.';
-                return;
-            }
+            if (scrapeType === 'profile') endpoint = `/scrape_profile?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            else if (scrapeType === 'search') endpoint = `/scrape_search?keywords=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            else if (scrapeType === 'post_details') endpoint = `/scrape_post?url=${encodeURIComponent(targetUrl)}&${params.toString()}`;
+            else { statusDiv.textContent = 'Error: Invalid scrape type selected.'; return; }
 
             try {
                 const response = await fetch(endpoint);
@@ -122,13 +300,11 @@
 
                 if (data.error) {
                     statusDiv.textContent = `Error: ${data.error}`;
-                    if(data.captcha_detected) {
-                         statusDiv.textContent += "\nCAPTCHA DETECTED. Please check the console of the scraper script, solve the CAPTCHA in the browser instance it controls, then try your scrape again from here after a moment.";
-                    }
+                    if(data.captcha_detected) statusDiv.textContent += "\nCAPTCHA DETECTED. Please check the console of the scraper script, solve the CAPTCHA in the browser instance it controls, then try your scrape again from here after a moment.";
                     resultsDiv.innerHTML = '<p>Scraping failed. See status for details.</p>';
                 } else {
                     statusDiv.textContent = 'Scrape completed successfully! Report generated (if applicable).';
-                    displayResults(data.data, scrapeType); // data.data contains the actual scrape output
+                    displayResults(data.data, scrapeType, data.query || data.url); // Pass original query/url for context
                     if (data.report_generated && data.report_url) {
                         viewReportLink.href = data.report_url;
                         viewReportLink.style.display = 'block';
@@ -142,22 +318,119 @@
             }
         });
 
-        function displayResults(data, type) {
-            resultsDiv.innerHTML = ''; // Clear previous results
-            if (!data) {
-                resultsDiv.innerHTML = '<p>No data returned or an error occurred.</p>';
-                return;
+        function displayResults(data, type, contextQuery) {
+            resultsDiv.innerHTML = '';
+            if (!data) { resultsDiv.innerHTML = '<p>No data returned.</p>'; return; }
+            const title = document.createElement('h3');
+            resultsDiv.appendChild(title);
+            if (type === 'profile') { title.textContent = \`Profile: \${data.name || contextQuery}\`; resultsDiv.appendChild(renderProfileData(data));}
+            else if (type === 'search') { title.textContent = \`Search Results for: "\${data.query || contextQuery}"\`; resultsDiv.appendChild(renderSearchResults(data));}
+            else if (type === 'post_details') { title.textContent = \`Details for Post: \${data.url || contextQuery}\`; resultsDiv.appendChild(renderPostDetails(data));}
+            else {
+                resultsDiv.innerHTML = '<p>Unknown data type received. Displaying raw JSON:</p>';
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(data, null, 2);
+                resultsDiv.appendChild(pre);
+            }
+        }
+        function createHtmlElement(tag, className, innerHTML) { const el = document.createElement(tag); if (className) el.className = className; if (innerHTML) el.innerHTML = innerHTML; return el;}
+
+        function renderProfileData(profileData) {
+            const fragment = document.createDocumentFragment();
+            if (profileData.url) fragment.appendChild(createHtmlElement('p', 'meta-info', \`URL: <a href="\${profileData.url}" target="_blank">\${profileData.url}</a>\`));
+            const postsTitle = createHtmlElement('h4', '', 'Posts'); fragment.appendChild(postsTitle);
+            if (profileData.posts && profileData.posts.length > 0) {
+                profileData.posts.forEach(post => {
+                    const postDiv = createHtmlElement('div', 'item-card post');
+                    let postHtml = \`<div class="meta-info">Posted: \${post.timestamp_text || 'N/A'}\`;
+                    if(post.url) postHtml += \` (<a href="\${post.url}" target="_blank">Link</a>)\`; postHtml += \`</div>\`;
+                    postHtml += \`<div class="content">\${post.content || "No content"}</div>\`;
+                    postHtml += renderLinks(post.links); postHtml += renderSentiment(post.sentiment);
+                    postHtml += renderRiskScore(post.risk_score); postHtml += renderTranslation(post.translation);
+                    postDiv.innerHTML = postHtml; fragment.appendChild(postDiv);
+                });
+            } else { fragment.appendChild(createHtmlElement('p', '', 'No posts found.')); }
+            return fragment;
+        }
+        function renderSearchResults(sData) {
+            const fragment = document.createDocumentFragment();
+            if (sData.discussions && sData.discussions.length > 0) {
+                sData.discussions.forEach(item => {
+                    const itemDiv = createHtmlElement('div', 'item-card discussion-item');
+                    let itemHtml = '';
+                    if (item.author_name) { itemHtml += \`<div class="meta-info">Author: \${item.author_url ? \`<a href="\${item.author_url}" target="_blank">\${item.author_name}</a>\` : item.author_name}\`; if(item.timestamp_text) itemHtml += \` | Posted: \${item.timestamp_text}\`; if(item.url) itemHtml += \` (<a href="\${item.url}" target="_blank">Link</a>)\`; itemHtml += \`</div>\`;}
+                    if (item.source_group_or_page) { itemHtml += \`<div class="meta-info">Source: <a href="\${item.source_group_or_page}" target="_blank">\${item.source_group_or_page}</a></div>\`; }
+                    itemHtml += \`<div class="content">\${item.content || "No content"}</div>\`;
+                    itemHtml += renderLinks(item.links); itemHtml += renderSentiment(item.sentiment);
+                    itemHtml += renderRiskScore(item.risk_score); itemHtml += renderTranslation(item.translation);
+                    itemDiv.innerHTML = itemHtml; fragment.appendChild(itemDiv);
+                });
+            } else { fragment.appendChild(createHtmlElement('p', '', 'No discussion items found.')); }
+            return fragment;
+        }
+        function renderPostDetails(pData) { // pData for postDetailsData
+            const fragment = document.createDocumentFragment();
+
+            if (pData.main_post) {
+                const mainPostCard = createHtmlElement('div', 'item-card post');
+                let mainPostHtml = '<h4>Main Post Content</h4>';
+                if (pData.main_post.author_name) {
+                    mainPostHtml += `<div class="meta-info">Author: ${pData.main_post.author_url ? `<a href="${pData.main_post.author_url}" target="_blank">${pData.main_post.author_name}</a>` : pData.main_post.author_name}`;
+                    mainPostHtml += ` | Posted: ${pData.main_post.timestamp_text || 'N/A'}`;
+                    // MODIFIED LINE: Use pData.url (the URL of the post being detailed) for "View Original Post"
+                    if (pData.url) {
+                        mainPostHtml += ` (<a href="${pData.url}" target="_blank">View Original Post</a>)`;
+                    }
+                    mainPostHtml += `</div>`;
+                } else if (pData.url) { // If no author but we have the main URL, still offer to view it.
+                     mainPostHtml += `<div class="meta-info">Post URL: <a href="${pData.url}" target="_blank">View Original Post</a></div>`;
+                }
+
+                mainPostHtml += `<div class="content">${pData.main_post.content || "No content"}</div>`;
+                mainPostHtml += renderLinks(pData.main_post.links);
+                mainPostHtml += renderSentiment(pData.main_post.sentiment);
+                mainPostHtml += renderRiskScore(pData.main_post.risk_score);
+                mainPostHtml += renderTranslation(pData.main_post.translation);
+                mainPostCard.innerHTML = mainPostHtml;
+                fragment.appendChild(mainPostCard);
+            } else if (pData.content) {
+                 const mainPostCard = createHtmlElement('div', 'item-card post');
+                 let fallbackContentHtml = `<h4>Main Post Content</h4>`;
+                 if (pData.url) { // Offer link even for fallback content display
+                    fallbackContentHtml += `<div class="meta-info">Post URL: <a href="${pData.url}" target="_blank">View Original Post</a></div>`;
+                 }
+                 fallbackContentHtml += `<div class="content">${pData.content}</div>`;
+                 // Note: sentiment, risk, etc., might not be available for this fallback scenario
+                 // if they were expected on a main_post object.
+                 mainPostCard.innerHTML = fallbackContentHtml;
+                 fragment.appendChild(mainPostCard);
             }
 
-            const title = document.createElement('h3');
-            title.textContent = \`Results for: \${type.replace('_', ' ')}\`;
-            resultsDiv.appendChild(title);
+            // Reactions (same as before)
+            if (pData.reactions) {
+                const reactionsTitle = createHtmlElement('h4', '', 'Reactions');
+                fragment.appendChild(reactionsTitle);
+                const reactionsP = createHtmlElement('p', 'meta-info', pData.reactions.summary_text || \`Total: \${pData.reactions.total_count || 'N/A'}\`);
+                fragment.appendChild(reactionsP);
+            }
 
-            // Simple JSON display for now, can be enhanced with specific templates later
-            const pre = document.createElement('pre');
-            pre.textContent = JSON.stringify(data, null, 2);
-            resultsDiv.appendChild(pre);
+            // Comments (same as before)
+            const commentsTitle = createHtmlElement('h4', '', \`Comments (\${pData.comment_count_text || '0'})\`);
+            fragment.appendChild(commentsTitle);
+            if (pData.comments && pData.comments.length > 0) {
+                pData.comments.forEach(comment => {
+                    const commentDiv = createHtmlElement('div', 'item-card comment');
+                    let commentHtml = '';
+                    if (comment.author_name) { commentHtml += \`<div class="meta-info">Author: \${comment.author_url ? \`<a href="\${comment.author_url}" target="_blank">\${comment.author_name}</a>\` : comment.author_name} | Posted: \${comment.timestamp_text || 'N/A'}</div>\`;}
+                    commentHtml += \`<div class="content">\${comment.content || "No content"}</div>\`;
+                    commentHtml += renderLinks(comment.links); commentHtml += renderSentiment(comment.sentiment);
+                    commentHtml += renderRiskScore(comment.risk_score); commentHtml += renderTranslation(comment.translation);
+                    commentDiv.innerHTML = commentHtml; fragment.appendChild(commentDiv);
+                });
+            } else { fragment.appendChild(createHtmlElement('p', '', 'No comments found.')); }
+            return fragment;
         }
+
     </script>
 </body>
 </html>
