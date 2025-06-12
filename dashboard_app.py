@@ -6,7 +6,7 @@ import datetime
 
 # Assuming other .py files (scraper_core, browser_handler, etc.) are in the same root directory
 # or accessible via PYTHONPATH
-import scraper_core
+import scraper_engine
 import browser_handler # Needed to get a driver
 import report_generator # For generating reports
 # text_utils and risk_analyzer are used by scraper_core
@@ -82,7 +82,7 @@ def scrape_profile_route():
 
     response_data = {"query": url}
     try:
-        data = scraper_core.get_public_profile_data(driver, url, analyze_sentiment, translate_to)
+        data = scraper_engine.get_public_profile_data(driver, url, analyze_sentiment, translate_to)
         response_data["data"] = data
 
         # Generate report
@@ -121,7 +121,7 @@ def scrape_search_route():
 
     response_data = {"query": keywords}
     try:
-        data = scraper_core.search_facebook(driver, keywords, analyze_sentiment, translate_to)
+        data = scraper_engine.search_facebook(driver, keywords, analyze_sentiment, translate_to)
         response_data["data"] = data
         try:
             report_filename = report_generator.generate_report(data, "search_report", keywords)
@@ -159,7 +159,7 @@ def scrape_post_route():
     response_data = {"url": post_url} # Use 'url' to match JS expectation for context
     try:
         # This function should return the main_post dict inside the result
-        data = scraper_core.get_post_details(driver, post_url, analyze_sentiment, translate_to)
+        data = scraper_engine.get_post_details(driver, post_url, analyze_sentiment, translate_to)
         response_data["data"] = data
         try:
             report_filename = report_generator.generate_report(data, "post_detail_report", post_url)
