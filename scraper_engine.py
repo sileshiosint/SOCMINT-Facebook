@@ -7,7 +7,7 @@ import time
 import re
 from urllib.parse import quote_plus
 import text_analyzer
-import content_analyzer
+from content_analyzer import score_risk, extract_links # Corrected import
 
 # --- Helper: CAPTCHA Detection ---
 def check_for_captcha(driver: WebDriver, context_message=""):
@@ -51,10 +51,13 @@ def process_content_analyses(item_data_dict, content_key="content",
     content = item_data_dict.get(content_key)
     if not content:
         item_data_dict["links"] = []
-        item_data_dict["risk_assessment"] = content_analyzer.score_risk("", None) # Score empty content for consistency if needed
+        # Initialize other keys to None or default empty state if content is not there
+        item_data_dict["translation"] = None
+        item_data_dict["sentiment"] = None
+        item_data_dict["risk_assessment"] = score_risk("", None) # Score empty content for consistency
         return
 
-    item_data_dict["links"] = content_analyzer.extract_links(content)
+    item_data_dict["links"] = extract_links(content) # Corrected call
     text_to_process = content
     if translate_to_lang:
         translated = text_analyzer.translate_text(text_to_process, translate_to_lang)
@@ -66,7 +69,8 @@ def process_content_analyses(item_data_dict, content_key="content",
     if analyze_sentiment_flag:
         current_sentiment = text_analyzer.analyze_sentiment(text_to_process)
         item_data_dict["sentiment"] = current_sentiment
-    item_data_dict["risk_assessment"] = content_analyzer.score_risk(text_to_process, current_sentiment)
+    # CORRECTED FUNCTION CALL HERE
+    item_data_dict["risk_assessment"] = score_risk(text_to_process, current_sentiment)
 
 # --- Main Scraping Functions ---
 def scrape_profile_data(driver: WebDriver, profile_url: str,
