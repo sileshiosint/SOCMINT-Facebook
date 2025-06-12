@@ -49,11 +49,13 @@ def scroll_page(driver: WebDriver, scrolls=3, delay=2.5):
 def process_content_analyses(item_data_dict, content_key="content",
                              analyze_sentiment_flag=False, translate_to_lang=None):
     content = item_data_dict.get(content_key)
+    # Initialize keys to ensure they exist in the dict
+    item_data_dict["links"] = []
+    item_data_dict["translation"] = None
+    item_data_dict["sentiment"] = None
+    item_data_dict["risk_assessment"] = None # Default to None
+
     if not content:
-        item_data_dict["links"] = []
-        # Initialize other keys to None or default empty state if content is not there
-        item_data_dict["translation"] = None
-        item_data_dict["sentiment"] = None
         item_data_dict["risk_assessment"] = score_risk("", None) # Score empty content for consistency
         return
 
@@ -64,7 +66,7 @@ def process_content_analyses(item_data_dict, content_key="content",
         if translated and translated.lower().strip() != text_to_process.lower().strip():
             item_data_dict["translation"] = {"original": content, "translated": translated, "lang": translate_to_lang}
             text_to_process = translated
-        elif not translated: text_to_process = content
+        elif not translated: text_to_process = content # fallback to original if translation fails
     current_sentiment = None
     if analyze_sentiment_flag:
         current_sentiment = text_analyzer.analyze_sentiment(text_to_process)
